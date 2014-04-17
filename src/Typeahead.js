@@ -46,6 +46,9 @@
  * $model : selected item's model
  * </pre>
  *
+ * @param {Function} td-typeahead-trigger (Defaults: null) : A function that
+ *            takes in a function that when called will trigger the autocomplete.
+ *
  * @param {String} td-typeahead-template : Set custom item template from
  *            scope
  *
@@ -53,6 +56,10 @@
  *
  * @param {Number} td-typeahead-wait-ms (Defaults: 0) : Minimal wait time
  *            after last character typed before typehead kicks-in
+ *
+ * @param {Object} td-typeahead-position (Defaults: null) : Positioning the
+ *            autocomplete dropdown menu.
+ *            @see http://api.jqueryui.com/autocomplete/#option-position
  *
  * @param {String} ng-list (Defaults: undefined) : Multiple options separator,
  *            if enabled multiple values can be selected separated by this
@@ -203,16 +210,17 @@ angular.module("td").directive("tdTypeahead", [
 						locals.$items = selectedTermsArray;
 					}
 
-					ngModelCtrl.$setViewValue(viewValue);
-					this.value = viewValue;
 					currentValue = viewValue;
+
+					element[0].value = viewValue;
+
+					originalScope.$apply(function() {
+						ngModelCtrl.$setViewValue(viewValue);
+					});
 
 					// trigger the selected callback
 					onSelect(originalScope, locals);
 
-					if (!originalScope.$$phase) {
-						originalScope.$digest();
-					}
 					return false;
 				},
 				focus : function(e, ui) {
@@ -225,12 +233,11 @@ angular.module("td").directive("tdTypeahead", [
 						return;
 					}
 
-					ngModelCtrl.$setViewValue(currentValue);
-					this.value = currentValue;
+					element[0].value = currentValue;
 
-					if (!originalScope.$$phase) {
-						originalScope.$digest();
-					}
+					originalScope.$apply(function() {
+						ngModelCtrl.$setViewValue(currentValue);
+					});
 				},
 				renderItem : function(ul, item) {
 					var itemScope = scope.$new(),
@@ -260,7 +267,20 @@ angular.module("td").directive("tdTypeahead", [
 			element.on("focus", function(event) {
 				currentValue = ngModelCtrl.$viewValue;
 			});
+
+			if (attrs.tdTypeaheadPosition) {
+				typeaheadOptions.position = originalScope.$eval(attrs.tdTypeaheadPosition);
+			}
+
 			element.typeahead(typeaheadOptions);
+
+			if (attrs.tdTypeaheadTrigger) {
+				originalScope.$eval(attrs.tdTypeaheadTrigger, {
+					$search : function(value) {
+						element.typeahead("search", value);
+					}
+				});
+			}
 		}
 	};
 } ]);

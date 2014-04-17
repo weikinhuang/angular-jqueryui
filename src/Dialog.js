@@ -1,6 +1,65 @@
+/**
+ * Chrome.Dialog is a service to quickly create AngularJS-powered modal windows
+ * with jquery.ui dialog. Creating custom modals is straightforward: create a
+ * partial view, its controller and reference them when using the service.
+ *
+ * This service has only one method: open(options) where available options are
+ * like follows:
+ *
+ * @param {Function} templateUrl - a path to a template representing modal's
+ *            content
+ *
+ * @param {Function} template - inline template representing the modal's content
+ *
+ * @param {Function} scope - a scope instance to be used for the modal's content
+ *            (actually the $modal service is going to create a child scope of a
+ *            provided scope). Defaults to $rootScope
+ *
+ * @param {Function} controller - a controller for a modal instance - it can
+ *            initialize scope used by modal. A controller can be injected with
+ *            $modalInstance
+ *
+ * @param {Function} resolve - members that will be resolved and passed to the
+ *            controller as locals; it is equivalent of the resolve property for
+ *            AngularJS routes
+ *
+ * @param {Object} locals - members that will be attached to the local controller's
+ *            scope
+ *
+ * @param {Object} dialogOpts - jquery ui dialog options
+ * @see http://api.jqueryui.com/dialog/
+ *
+ * The open method returns a modal instance, an object with the following
+ * properties:
+ *
+ * @param {Function} close(result) - a method that can be used to close a modal,
+ *            passing a result
+ *
+ * @param {Function} result - a promise that is resolved when a modal is closed
+ *            and rejected when a modal is dismissed
+ *
+ * @param {Function} opened - a promise that is resolved when a modal gets
+ *            opened after downloading content's template and resolving all
+ *            variables
+ *
+ * @param {Function} moveToTop - a method that focuses the modal by bringing it
+ *            to the forefront
+ *
+ * In addition the scope associated with modal's content is augmented with 2
+ * methods:
+ *
+ * @param {Function} $close(result)
+ *
+ * @param {Function} $dismiss(reason) Those methods make it easy to close a
+ *            modal window without a need to create a dedicated controller
+ *
+ * @param {Object} $dialogOpts Watched collection that changes the dialog
+ * @see http://api.jqueryui.com/dialog/
+ */
 Classify("Td.Service/Chrome.Dialog", {
 	$inject : [ "$http", "$q", "$rootScope", "$compile", "$controller", "$templateCache", "$injector" ],
-	dialogEvents : [ "beforeClose",
+	dialogEvents : [
+		"beforeClose",
 		"create",
 		"drag",
 		"dragStart",
@@ -8,7 +67,8 @@ Classify("Td.Service/Chrome.Dialog", {
 		"focus",
 		"resize",
 		"resizeStart",
-		"resizeStop" ],
+		"resizeStop"
+	],
 	open : function(options) {
 		var self = this,
 			modalResultDeferred = this.$q.defer(),
@@ -61,6 +121,10 @@ Classify("Td.Service/Chrome.Dialog", {
 				}
 			};
 
+			// add locals to scope
+			angular.forEach(options.locals || {}, function(value, key) {
+				modalScope[key] = value;
+			});
 			// controllers
 			if (options.controller) {
 				ctrlLocals.$scope = modalScope;
@@ -78,9 +142,6 @@ Classify("Td.Service/Chrome.Dialog", {
 						$event : e,
 						$ui : ui
 					});
-					if (!modalScope.$$phase) {
-						modalScope.$digest();
-					}
 				};
 			});
 
@@ -89,11 +150,6 @@ Classify("Td.Service/Chrome.Dialog", {
 			modalScope.$watchCollection("$dialogOpts", function(newOpts) {
 				$dialog.dialog("option", newOpts);
 			});
-
-			// render if not rendered
-			if (!modalScope.$$phase) {
-				modalScope.$digest();
-			}
 		}, function resolveError(reason) {
 			modalOpenedDeferred.reject(false);
 			modalResultDeferred.reject(reason);

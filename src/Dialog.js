@@ -35,6 +35,10 @@
  * @param {Function} close(result) - a method that can be used to close a modal,
  *    passing a result
  *
+ * @param {Function} open() - a method that can be used to open a modal,
+ *            note that this method only works when dialogOpts.autoOpen is set to
+ *            false
+ *
  * @param {Function} result - a promise that is resolved when a modal is closed
  *    and rejected when a modal is dismissed
  *
@@ -45,16 +49,57 @@
  * @param {Function} moveToTop - a method that focuses the modal by bringing it
  *    to the forefront
  *
- * In addition the scope associated with modal's content is augmented with 2
- * methods:
+ * In addition the scope associated with modal's content is augmented with 3
+ * methods and 1 property and some new events are emitted:
+ *
+ * @param {Function} $open()
  *
  * @param {Function} $close(result)
  *
  * @param {Function} $dismiss(reason) Those methods make it easy to close a
- *    modal window without a need to create a dedicated controller
+ *            modal window without a need to create a dedicated controller
  *
  * @param {Object} $dialogOpts Watched collection that changes the dialog
  * @see http://api.jqueryui.com/dialog/
+ *
+ * Listen to these events with $scope.$on() within the dialog scope
+ * @see http://api.jqueryui.com/dialog/ for event descriptions
+ *
+ * @event dialog.beforeClose
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.create
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.drag
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.dragStart
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.dragStop
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.focus
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.resize
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.resizeStart
+ * @param {Object} $event
+ * @param {Object} $ui
+ *
+ * @event dialog.resizeStop
+ * @param {Object} $event
+ * @param {Object} $ui
  */
 angular.module("td").provider("tdDialog", [
 	"$http", "$q", "$rootScope", "$compile", "$controller", "$templateCache", "$injector",
@@ -108,6 +153,16 @@ angular.module("td").provider("tdDialog", [
 			modalInstance = {
 				result : modalResultDeferred.promise,
 				opened : modalOpenedDeferred.promise,
+				open : function() {
+					if (options.dialogOpts.autoOpen !== false) {
+						return;
+					}
+					if ($dialog && !$dialog.dialog("isOpen")) {
+						$dialog.dialog("open");
+					} else if (!$dialog) {
+						options.dialogOpts.autoOpen = true;
+					}
+				},
 				close : function(result) {
 					modalResultDeferred.resolve(result);
 					if ($dialog) {
@@ -129,9 +184,10 @@ angular.module("td").provider("tdDialog", [
 					dialogOpts, modalDomEl;
 				// close method
 				modalScope.$close = modalInstance.close;
+				modalScope.$open = modalInstance.open;
 				modalScope.$dialogOpts = options.dialogOpts;
 
-				dialogOpts = {
+				dialogOpts = angular.extend({}, options.dialogOpts, {
 					open : function(e, ui) {
 						modalOpenedDeferred.resolve(true);
 					},
@@ -139,7 +195,7 @@ angular.module("td").provider("tdDialog", [
 						modalResultDeferred.resolve();
 						modalScope.$destroy();
 					}
-				};
+				});
 
 				// add locals to scope
 				angular.forEach(options.locals || {}, function(value, key) {
@@ -158,16 +214,19 @@ angular.module("td").provider("tdDialog", [
 
 				angular.forEach(dialogEvents, function(event) {
 					dialogOpts[event] = function(e, ui) {
-						modalScope.$eval(event, {
-							$event : e,
-							$ui : ui
-						});
+						modalScope.$emit("dialog." + event, e, ui);
 					};
 				});
 
 				$dialog = modalDomEl.dialog(dialogOpts);
 
 				modalScope.$watchCollection("$dialogOpts", function(newOpts) {
+					// don't allow override of events!
+					angular.forEach(dialogEvents.concat("open", "close"), function(event) {
+						try {
+							delete newOpts[event];
+						} catch(e) {}
+					});
 					$dialog.dialog("option", newOpts);
 				});
 			}, function resolveError(reason) {
